@@ -1,6 +1,4 @@
 // api/capture-order.js
-// Vercel serverless function — captures the payment after buyer approves in PayPal popup
-// Also sends customer data to Klaviyo to trigger the welcome email
 
 const PAYPAL_API = process.env.PAYPAL_ENV === 'live'
   ? 'https://api-m.paypal.com'
@@ -28,22 +26,7 @@ async function addToKlaviyo(name, email) {
   const firstName = name.split(' ')[0];
   const lastName = name.split(' ').slice(1).join(' ') || '';
 
-  const payload = {
-    data: {
-      type: 'profile',
-      attributes: {
-        email,
-        first_name: firstName,
-        last_name: lastName,
-        properties: {
-          product: 'The Anchor Method',
-          purchase_date: new Date().toISOString(),
-        },
-      },
-    },
-  };
-
-  // Create or update profile in Klaviyo
+  // Create or update profile
   const profileRes = await fetch('https://a.klaviyo.com/api/profiles/', {
     method: 'POST',
     headers: {
@@ -51,23 +34,35 @@ async function addToKlaviyo(name, email) {
       'Content-Type': 'application/json',
       revision: '2024-02-15',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      data: {
+        type: 'profile',
+        attributes: {
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          properties: {
+            product: 'The Anchor Method',
+            purchase_date: new Date().toISOString(),
+          },
+        },
+      },
+    }),
   });
 
   const profileData = await profileRes.json();
 
-  // Get profile ID (either from creation or from conflict response)
   let profileId = profileData?.data?.id;
   if (!profileId && profileData?.errors?.[0]?.meta?.duplicate_profile_id) {
     profileId = profileData.errors[0].meta.duplicate_profile_id;
   }
 
   if (!profileId) {
-    console.error('Could not get Klaviyo profile ID:', profileData);
+    console.error('Could not get Klaviyo profile ID:', JSON.stringify(profileData));
     return;
   }
 
-  // Add profile to the buyers list
+  // Add to list
   await fetch(`https://a.klaviyo.com/api/lists/${process.env.KLAVIYO_LIST_ID}/relationships/profiles/`, {
     method: 'POST',
     headers: {
@@ -80,7 +75,7 @@ async function addToKlaviyo(name, email) {
     }),
   });
 
-  // Fire a custom event to trigger the welcome email flow
+  // Fire purchase event to trigger Klaviyo flow
   await fetch('https://a.klaviyo.com/api/events/', {
     method: 'POST',
     headers: {
@@ -94,20 +89,20 @@ async function addToKlaviyo(name, email) {
         attributes: {
           metric: { data: { type: 'metric', attributes: { name: 'Anchor Method Purchase' } } },
           profile: { data: { type: 'profile', id: profileId } },
-          properties: {
-            product: 'The Anchor Method',
-            value: 147,
-          },
+          properties: { product: 'The Anchor Method', value: 147 },
         },
       },
     }),
   });
 }
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { orderID, name, email } = req.body;
 
@@ -118,7 +113,6 @@ export default async function handler(req, res) {
   try {
     const token = await getPayPalToken();
 
-    // Capture the payment
     const capture = await fetch(`${PAYPAL_API}/v2/checkout/orders/${orderID}/capture`, {
       method: 'POST',
       headers: {
@@ -128,18 +122,16 @@ export default async function handler(req, res) {
     });
 
     const captureData = await capture.json();
-    const status = captureData?.status;
 
-    if (status === 'COMPLETED') {
-      // Payment confirmed — add to Klaviyo
+    if (captureData?.status === 'COMPLETED') {
       await addToKlaviyo(name, email);
       return res.status(200).json({ success: true });
     } else {
-      console.error('Capture failed:', captureData);
+      console.error('Capture failed:', JSON.stringify(captureData));
       return res.status(400).json({ error: 'Payment not completed', details: captureData });
     }
   } catch (err) {
-    console.error('capture-order error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('capture-order error:', err.message);
+    return res.status(500).json({ error: err.message });
   }
-}
+};
