@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout: The Anchor Method</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- PayPal JS SDK — replace AQATCnWKkj_TJMsrnwuGczbJwiD6iRQI1rR4hg3pxyrt8hQJw_5YBWE3-JuYNApp3JlJN9G6CEP9I9sI with real client ID before going live -->
+<script src="https://www.paypal.com/sdk/js?client-id=AQATCnWKkj_TJMsrnwuGczbJwiD6iRQI1rR4hg3pxyrt8hQJw_5YBWE3-JuYNApp3JlJN9G6CEP9I9sI&currency=USD&intent=capture" defer></script>
+<style>
+  :root{
+    --black:#0E0E0F;
+    --panel:#1B1B17;
+    --bone:#EDEAE3;
+    --bone-dim:#C9C5BA;
+    --olive:#5C6B4F;
+    --olive-bright:#7C8F66;
+    --rust:#A8552E;
+    --grey:#8C8A85;
+    --line: rgba(237,234,227,0.12);
+    --display: "Archivo", sans-serif;
+    --body: "Source Serif 4", serif;
+    --mono: "IBM Plex Mono", monospace;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html, body{
+    background:var(--black); color:var(--bone);
+    font-family:var(--body); line-height:1.4;
+    height:100%; overflow:hidden;
+  }
+  html.allow-scroll, html.allow-scroll body{
+    overflow:auto; height:auto;
+  }
+  a{ color:inherit; text-decoration:none; }
+
+  .checkout-wrap{
+    max-width:1080px; height:100vh; margin:0 auto;
+    padding:22px 28px;
+    display:grid; grid-template-columns:1fr 340px;
+    gap:36px; align-items:center;
+  }
+
+  h1{
+    font-family:var(--display); font-weight:900; text-transform:uppercase;
+    letter-spacing:-0.01em; font-size:clamp(20px,2.6vw,26px); margin-bottom:18px;
+  }
+
+  .form-group{ margin-bottom:12px; }
+  label{
+    display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:0.04em;
+    text-transform:uppercase; color:var(--grey); margin-bottom:5px;
+  }
+  input{
+    width:100%; background:var(--panel); border:1px solid var(--line);
+    border-radius:4px; padding:10px 14px; color:var(--bone);
+    font-family:var(--body); font-size:14px;
+  }
+  input::placeholder{ color:#5a584f; }
+  input:focus{ outline:none; border-color:var(--olive-bright); }
+
+  .section-divider{
+    border-top:1px solid var(--line); margin:18px 0 14px; padding-top:14px;
+  }
+  .section-divider h3{
+    font-family:var(--display); font-weight:700; text-transform:none;
+    letter-spacing:0; font-size:14.5px; margin-bottom:14px;
+  }
+
+  /* PayPal button container */
+  #paypal-button-container{ width:100%; }
+
+  /* Error / status messages */
+  #checkout-msg{
+    margin-top:12px; font-family:var(--mono); font-size:11.5px;
+    color:var(--rust); display:none;
+  }
+  #checkout-msg.visible{ display:block; }
+  #checkout-msg.success{ color:var(--olive-bright); }
+
+  .trust-row{
+    display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;
+  }
+  .trust-row span{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--bone-dim); border:1px solid var(--line); padding:5px 8px; border-radius:3px;
+  }
+
+  /* Summary */
+  .summary{
+    background:var(--panel); border:1px solid var(--olive);
+    border-radius:6px; padding:22px; align-self:center;
+  }
+  .summary .name{
+    font-family:var(--display); font-weight:700; text-transform:none;
+    letter-spacing:0; font-size:16px; margin-bottom:4px;
+  }
+  .summary .duration{
+    font-family:var(--mono); font-size:10.5px; color:var(--olive-bright);
+    text-transform:uppercase; letter-spacing:0.04em; margin-bottom:14px; display:block;
+  }
+  .summary-list{ list-style:none; margin-bottom:14px; }
+  .summary-list li{
+    font-family:var(--body); font-size:12.5px; color:var(--bone-dim);
+    padding:6px 0; border-top:1px solid var(--line); display:flex; gap:8px;
+  }
+  .summary-list li:last-child{ border-bottom:1px solid var(--line); }
+  .summary-list li::before{ content:"+"; color:var(--olive-bright); font-family:var(--mono); flex-shrink:0; }
+
+  .price-line{
+    display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;
+  }
+  .price-line .lbl{ font-family:var(--body); color:var(--bone-dim); font-size:13px; }
+  .price-line .val{ font-family:var(--display); font-weight:900; font-size:13px; }
+  .price-line.total{ margin-top:10px; padding-top:10px; border-top:1px solid var(--line); }
+  .price-line.total .lbl{ font-family:var(--mono); font-size:11px; text-transform:uppercase; color:var(--grey); }
+  .price-line.total .val{ font-size:24px; }
+
+  .guarantee-note{
+    margin-top:14px; background:var(--black); border:1px solid var(--line);
+    border-radius:4px; padding:11px 13px; font-family:var(--mono);
+    font-size:10px; color:var(--grey); line-height:1.5;
+  }
+  .guarantee-note strong{ color:var(--bone); }
+
+  @media (max-height:700px){
+    .checkout-wrap{ gap:20px; padding:14px 24px; }
+    h1{ margin-bottom:10px; }
+    .form-group{ margin-bottom:8px; }
+    .section-divider{ margin:12px 0 10px; padding-top:10px; }
+    .summary{ padding:16px; }
+  }
+  @media (max-width:880px){
+    html, body{ overflow:auto; height:auto; }
+    .checkout-wrap{ grid-template-columns:1fr; height:auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="checkout-wrap">
+
+  <div>
+    <h1>Start The Anchor Method</h1>
+
+    <div class="form-group">
+      <label>Full Name</label>
+      <input type="text" id="buyer-name" placeholder="John Carter" autocomplete="name">
+    </div>
+    <div class="form-group">
+      <label>Email Address</label>
+      <input type="email" id="buyer-email" placeholder="you@email.com" autocomplete="email">
+    </div>
+    <div id="fields-msg" style="display:none; font-family:var(--mono); font-size:11.5px; color:#C76A3D; margin-bottom:10px;">
+      Please enter your name and email before continuing.
+    </div>
+
+    <div class="section-divider">
+      <h3>Payment</h3>
+      <div id="paypal-button-container"></div>
+      <div id="checkout-msg"></div>
+    </div>
+
+    <div class="trust-row">
+      <span>256-bit SSL</span>
+      <span>Secure Payment</span>
+      <span>14-Day Guarantee</span>
+    </div>
+  </div>
+
+  <div class="summary">
+    <span class="name">The Anchor Method</span>
+    <span class="duration">30-Day Coaching Program</span>
+    <ul class="summary-list">
+      <li>Personal diagnostic conversation</li>
+      <li>Daily anchor points built for your week</li>
+      <li>A direct call most days, 10 to 30 minutes, with your coach</li>
+      <li>Psychology behind every anchor, explained plainly</li>
+      <li>Weekly adjustments as consistency builds</li>
+      <li>Bonus: The Self-Improvement Blueprint</li>
+    </ul>
+    <div class="price-line">
+      <span class="lbl">The Anchor Method (30 days)</span>
+      <span class="val">$147</span>
+    </div>
+    <div class="price-line total">
+      <span class="lbl">Total Due Today</span>
+      <span class="val">$147</span>
+    </div>
+    <div class="guarantee-note">
+      <strong>14-day guarantee.</strong> Show up to the daily calls and follow the anchors for two weeks. If it isn't working, you get your money back, no argument.
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function showMsg(text, type) {
+    const el = document.getElementById('checkout-msg');
+    el.textContent = text;
+    el.className = 'visible' + (type === 'success' ? ' success' : '');
+  }
+
+  function hideMsg() {
+    document.getElementById('checkout-msg').className = '';
+  }
+
+  function showFieldsMsg() {
+    document.getElementById('fields-msg').style.display = 'block';
+  }
+
+  function hideFieldsMsg() {
+    document.getElementById('fields-msg').style.display = 'none';
+  }
+
+  // Enable scroll when PayPal expands the card form, disable when it collapses
+  function watchPayPalContainer() {
+    const container = document.getElementById('paypal-button-container');
+    if (!container) return;
+
+    const observer = new MutationObserver(() => {
+      const height = container.offsetHeight;
+      if (height > 120) {
+        document.documentElement.classList.add('allow-scroll');
+      } else {
+        document.documentElement.classList.remove('allow-scroll');
+      }
+    });
+
+    observer.observe(container, { childList: true, subtree: true, attributes: true });
+  }
+
+  window.addEventListener('load', () => {
+    if (typeof paypal === 'undefined') {
+      showMsg('Payment provider failed to load. Please refresh the page.');
+      return;
+    }
+
+    watchPayPalContainer();
+
+    paypal.Buttons({
+      style: {
+        layout: 'vertical',
+        color: 'gold',
+        shape: 'rect',
+        label: 'pay',
+        height: 45,
+      },
+
+      createOrder: async () => {
+        const name = document.getElementById('buyer-name').value.trim();
+        const email = document.getElementById('buyer-email').value.trim();
+
+        if (!name || !email) {
+          showFieldsMsg();
+          return null;
+        }
+        if (!/\S+@\S+\.\S+/.test(email)) {
+          document.getElementById('fields-msg').textContent = 'Please enter a valid email address.';
+          showFieldsMsg();
+          return null;
+        }
+
+        hideFieldsMsg();
+        hideMsg();
+
+        try {
+          const res = await fetch('/api/create-order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email }),
+          });
+
+          const data = await res.json();
+
+          if (data.orderID) {
+            return data.orderID;
+          } else {
+            showMsg('Something went wrong creating your order. Please try again.');
+            return null;
+          }
+        } catch (err) {
+          showMsg('Network error. Please check your connection and try again.');
+          return null;
+        }
+      },
+
+      onApprove: async (data) => {
+        showMsg('Processing your payment...', 'success');
+
+        const name = document.getElementById('buyer-name').value.trim();
+        const email = document.getElementById('buyer-email').value.trim();
+
+        try {
+          const res = await fetch('/api/capture-order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderID: data.orderID, name, email }),
+          });
+
+          const result = await res.json();
+
+          if (result.success) {
+            window.location.href = '/success.html';
+          } else {
+            showMsg('Payment capture failed. Please contact support.');
+          }
+        } catch (err) {
+          showMsg('Something went wrong. Please contact support.');
+        }
+      },
+
+      onError: (err) => {
+        console.error('PayPal error:', err);
+        showMsg('PayPal encountered an error. Please try again.');
+      },
+
+      onCancel: () => {
+        document.documentElement.classList.remove('allow-scroll');
+        showMsg('Payment cancelled. You can try again when ready.');
+      },
+
+    }).render('#paypal-button-container');
+  });
+</script>
+
+</body>
+</html>
