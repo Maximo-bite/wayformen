@@ -43,7 +43,7 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         intent: 'CAPTURE',
         purchase_units: [{
-          amount: { currency_code: 'USD', value: '147.00' },
+          amount: { currency_code: 'USD', value: '1.00' },
           description: 'The Anchor Method 30-Day Coaching Program',
         }],
         application_context: {
